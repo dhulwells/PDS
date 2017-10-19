@@ -5,6 +5,7 @@
         <cable>USB-Blaster [USB-0]</cable>
         <processor>nios2_e</processor>
         <reset_processor_during_load>false</reset_processor_during_load>
+        <terminal>uart</terminal>
     </system>
     <program>
         <type>Assembly Program</type>

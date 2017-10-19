@@ -1,18 +1,11 @@
-# This is a bank template to use for your homework assignments
-
 # --------------------------------------------------------------
-#      Author: <fill in your name>
-#  Assignment: homeworkN  <change N to the appropriate value>
-#        Date: <fill in the date you complete your code>
+#      Author: Samuel Cuthbertson
+#  Assignment: homework2
+#        Date: 10/19/17
 #      System: DE10-Lite PDS Computer
-# Description: <write a short description of what your code does>
+# Description: Outputs messages in a manner described in the homework2 writeup
+# Attribution: Some lines used verbatim from class examples
 # --------------------------------------------------------------
-
-# This is a comment line.
-
-/*
-     This is a comment block
- */
 
 		# ---------------------------------------------------------
 		# TEXT SECTION
@@ -39,36 +32,68 @@ _start:
     movia		sp, SDRAM_CTRL_END
     movia		fp, SDRAM_CTRL_END
 
-		movia   r16, UART_BASE		# r16 -> UART base address
+		movia   r16, UART_BASE			# r16 -> UART base address
 
-    # Call print on our first string
+		movia		r4, press_ent_str   # Call print on our first string
+		call 		print
 
-    # Wait for enter
+		call		wait_ent						# Wait for enter
 
-    # Call print on our second string
+		movia		r4, hello_world_str # Call print on our second string
+		call 		print
 
-    # Wait for enter
+		movia		r4, cont_ent_str    # Call print on our third string
+		call 		print
 
-    # Call print on our third string
+		call		wait_ent						# Wait for enter
 
-    # Hang out here forever
-self:		br  	self
+		movia		r4, done_str				# Call print on our last string
+		call 		print
 
-# -------------------------------------------------------------
-# print ()
-# Takes as argument
-#
+self:		br  	self							# Hang out here forever
+
+		# ------------------------------------------------------------
+		# print ()
+		# Takes as argument string pointed to by r4, prints to UART.
+		#
 print:
+		ldwio		r18, 4(r16)         # Is there space available in the TX FIFO?
+		andhi   r18, r18, 0xFFFF    # Only look at the upper 16-bits.
+		beq			r18, r0, print 		  # No space, wait for space to become available.
+
+		# OK, there is space in the TX FIFO, send the character to the host
+		ldb			r19, (r4)							# Load our character to be sent
+		beq 		r0, r19, _print_ret		# If null, return. End of string
+		stbio		r19, (r16)						# Else, send character
+
+		# Iterate
+		addi		r4, r4, 0x1
+		br			print
+
+_print_ret:
+		ret
+
+wait_ent:
+		movi		r19, 0x0A 				# Character of enter
+		ldwio		r17, (r16)	# [15] = RVALID, when == 1 we have a !empty RX FIFO
+		mov			r18, r17		# make a copy to test for RVALID set
+		andi		r18, r18, 0x8000	# AND off everything but the RVALID bit
+		beq			r18, r0, wait_ent	# if r18 == 0, no character received
+
+		mov			r18, r17	# make a copy to test for enter
+		andi		r18, r18, 0xFF	# AND off everything but the character bits
+		bne			r18, r19, wait_ent # If not enter, keep waiting
+		# Else, return
+		ret
 
 		# ---------------------------------------------------------
 		# DATA SECTION
 		# ---------------------------------------------------------
 		.data
 
-
-
-
-
-
+press_ent_str:		.asciz		"Press the enter key to begin\n"
+hello_world_str:	.asciz		"Hello World!\n"
+cont_ent_str:			.asciz		"Press the enter key to continue\n"
+done_str:					.asciz		"We are done!\n"
 
 		.end							# end of assembly.
