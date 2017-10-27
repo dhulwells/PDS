@@ -1,9 +1,9 @@
 # --------------------------------------------------------------
 #      Author: Samuel Cuthbertson
-#  Assignment: homework2
+#  Assignment: homework3
 #        Date: 10/19/17
 #      System: DE10-Lite PDS Computer
-# Description: Outputs messages in a manner described in the homework2 writeup
+# Description: Outputs messages in a manner described in the homework3 writeup
 # Attribution: Some lines used verbatim from class examples
 # --------------------------------------------------------------
 
@@ -34,66 +34,78 @@ _start:
 
 		movia   r16, UART_BASE			# r16 -> UART base address
 
-		movia		r4, press_ent_str   # Call print on our first string
-		call 		print
+		movia		r8, buffer					# Buffer pointer
+		movia		r9, buffer					# End of list pointer
+		movia		r10, buffer					# Beginning of list pointer
+		addi		r11, r8, 32					# Max buffer address
 
-		call		wait_ent						# Wait for enter
+_top:
+    # Read into buffer
+		call read_byte
+		call print_byte
+    # Check if dump
 
-		movia		r4, hello_world_str # Call print on our second string
-		call 		print
+    br  	_top # Do this forever
 
-		movia		r4, cont_ent_str    # Call print on our third string
-		call 		print
-
-		call		wait_ent						# Wait for enter
-
-		movia		r4, done_str				# Call print on our last string
-		call 		print
-
-self:		br  	self							# Hang out here forever
 
 		# ------------------------------------------------------------
-		# print ()
-		# Takes as argument string pointed to by r4, prints to UART.
-		#
-print:
+		# print_byte (char r4)
+		# Takes as argument character in r4, prints r4 to UART.
+		# ------------------------------------------------------------
+print_byte:
 		ldwio		r18, 4(r16)         # Is there space available in the TX FIFO?
 		andhi   r18, r18, 0xFFFF    # Only look at the upper 16-bits.
 		beq			r18, r0, print 		  # No space, wait for space to become available.
 
 		# OK, there is space in the TX FIFO, send the character to the host
-		ldb			r19, (r4)							# Load our character to be sent
-		beq 		r0, r19, _print_ret		# If null, return. End of string
-		stbio		r19, (r16)						# Else, send character
-
-		# Iterate
-		addi		r4, r4, 0x1
-		br			print
-
-_print_ret:
+		stbio		r4, (r16)
 		ret
 
-wait_ent:
-		movi		r19, 0x0A 				# Character of enter
-		ldwio		r17, (r16)	# [15] = RVALID, when == 1 we have a !empty RX FIFO
-		mov			r18, r17		# make a copy to test for RVALID set
-		andi		r18, r18, 0x8000	# AND off everything but the RVALID bit
-		beq			r18, r0, wait_ent	# if r18 == 0, no character received
+		# ------------------------------------------------------------
+		# read_byte () : char r4
+		# Reads byte from UART, stores in r4. Trivial enough assignment
+		# 	that we can get away with sloppyness like this.
+		# ------------------------------------------------------------
+read_byte:
+		ldwio		r4, (r16)	# [15] = RVALID, when == 1 we have a !empty RX FIFO
+		mov			r18, r4		# make a copy to test for RVALID set
+		andi		r18, r18, 0x8000		# AND off everything but the RVALID bit
+		beq			r18, r0, read_byte	# if r18 == 0, no character received
 
-		mov			r18, r17	# make a copy to test for enter
+		# Store in buffer, tricky bit
+		stb			r4, r9
+		addi		r9, r9, 1
+		bne			r9,	r11, _test_begin
+		mov			r9, r8	# Wrap back to beginning
+_test_begin:
+		bne			r9, r10, _read_ret # Is the beginning now also the end?
+		addi		r10, r10, 1
+		bne			r10,	r11, _read_ret
+		mov			r10, r8	# Wrap back to beginning
+
+_read_ret:
+		ret
+
+
+
+
+
+
+		# Test r4 to see if it's an enter
+test_dump:
+		movi		r19, 0x0A 			# Character of enter
+		mov			r18, r4					# make a copy to test for enter
 		andi		r18, r18, 0xFF	# AND off everything but the character bits
-		bne			r18, r19, wait_ent # If not enter, keep waiting
-		# Else, return
+
 		ret
+
+
 
 		# ---------------------------------------------------------
 		# DATA SECTION
 		# ---------------------------------------------------------
 		.data
 
-press_ent_str:		.asciz		"Press the enter key to begin\n"
-hello_world_str:	.asciz		"Hello World!\n"
-cont_ent_str:			.asciz		"Press the enter key to continue\n"
-done_str:					.asciz		"We are done!\n"
+buffer:     .buffer     32    # Our Buffer
 
 		.end							# end of assembly.
