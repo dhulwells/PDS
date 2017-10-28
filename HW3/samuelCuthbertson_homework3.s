@@ -35,15 +35,17 @@ _start:
 		movia   r16, UART_BASE			# r16 -> UART base address
 
 		movia		r8, buffer					# Buffer pointer
-		movia		r9, buffer					# End of list pointer
-		movia		r10, buffer					# Beginning of list pointer
-		addi		r11, r8, 32					# Max buffer address
+		movia		r9, buffer					# List pointer
 
 _top:
-    # Read into buffer
+    # Read from uart
 		call read_byte
+    # Print read byte
 		call print_byte
-    # Check if dump
+    # Store byte in buffer
+    #call store_byte
+    # Dump?
+    #call test_dump
 
     br  	_top # Do this forever
 
@@ -71,7 +73,13 @@ read_byte:
 		mov			r18, r4		# make a copy to test for RVALID set
 		andi		r18, r18, 0x8000		# AND off everything but the RVALID bit
 		beq			r18, r0, read_byte	# if r18 == 0, no character received
+    ret
 
+		# ------------------------------------------------------------
+		# store_byte () : char r4
+		# Takes as argument character in r4, stores r4 to buffer.
+		# ------------------------------------------------------------
+store_byte:
 		# Store in buffer, tricky bit
 		stb			r4, r9
 		addi		r9, r9, 1
