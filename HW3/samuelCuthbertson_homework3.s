@@ -33,6 +33,7 @@ _start:
     movia		fp, SDRAM_CTRL_END
 
 		movia   r16, UART_BASE			# r16 -> UART base address
+		mov r22, r0
 
 		movia		r8, buffer					# Buffer pointer
 		movia		r9, buffer					# List pointer
@@ -43,9 +44,9 @@ _top:
     # Print read byte
 		call print_byte
     # Store byte in buffer
-    #call store_byte
+    call store_byte
     # Dump?
-    #call test_dump
+    call test_dump
 
     br  	_top # Do this forever
 
@@ -57,7 +58,7 @@ _top:
 print_byte:
 		ldwio		r18, 4(r16)         # Is there space available in the TX FIFO?
 		andhi   r18, r18, 0xFFFF    # Only look at the upper 16-bits.
-		beq			r18, r0, print 		  # No space, wait for space to become available.
+		beq			r18, r0, print_byte # No space, wait for space to become available.
 
 		# OK, there is space in the TX FIFO, send the character to the host
 		stbio		r4, (r16)
@@ -81,30 +82,55 @@ read_byte:
 		# ------------------------------------------------------------
 store_byte:
 		# Store in buffer, tricky bit
-		stb			r4, r9
+		stb			r4, (r9)
 		addi		r9, r9, 1
-		bne			r9,	r11, _test_begin
+		addi		r11, r8, 32
+		bne			r9,	r11, _store_ret
 		mov			r9, r8	# Wrap back to beginning
-_test_begin:
-		bne			r9, r10, _read_ret # Is the beginning now also the end?
-		addi		r10, r10, 1
-		bne			r10,	r11, _read_ret
-		mov			r10, r8	# Wrap back to beginning
-
-_read_ret:
+_store_ret:
 		ret
-
-
-
-
-
 
 		# Test r4 to see if it's an enter
 test_dump:
-		movi		r19, 0x0A 			# Character of enter
-		mov			r18, r4					# make a copy to test for enter
-		andi		r18, r18, 0xFF	# AND off everything but the character bits
+		subi    sp, sp, WORD
+		stw     ra,  0(sp)
 
+		movi		r19, 0x0A 					# Character of [enter]
+		movia   r21, dump_str
+		ldwio		r20, (r21)  		# dump
+
+		mov			r18, r4							# make a copy to test for enter
+		andi		r18, r18, 0xFF			# AND off everything but the character bits
+
+		bne			r18, r19, _test_ret # If not enter, keep waiting
+		bne			r22, r20, _test_ret # If last 4 chars not dump, keep waiting
+
+		# If it is enter, test last 4 bytes.
+		# ldb			r4, (r8)
+
+		movia 	r10, 0
+		movia		r11, 32
+		addi		r13, r8, 32
+		mov			r12, r9
+_dump_all:
+		beq			r10, r11, _test_ret
+		bne			r12, r13, _dump_read
+		mov			r12, r8	# Wrap back to beginning
+_dump_read:
+		ldbio		r4, (r12)
+		addi 		r10, r10, 1 #
+		addi		r12, r12, 1 # Read next byte
+		call print_byte
+		br _dump_all
+
+_test_ret:
+		srli		r22, r22, 8					# shift last 4 chars over
+		slli		r18, r18, 24
+		add			r22, r22, r18				# add most recent char
+
+		ldw			ra,  0(sp)
+		# free the stack frame
+		addi   	sp, sp, WORD
 		ret
 
 
@@ -114,6 +140,7 @@ test_dump:
 		# ---------------------------------------------------------
 		.data
 
-buffer:     .buffer     32    # Our Buffer
+buffer:     .space     32    # Our Buffer
+dump_str:   .ascii     "dump" 	   # Test for 'dump'
 
 		.end							# end of assembly.
