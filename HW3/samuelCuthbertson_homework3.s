@@ -33,7 +33,7 @@ _start:
     movia		fp, SDRAM_CTRL_END
 
 		movia   r16, UART_BASE			# r16 -> UART base address
-		mov r22, r0
+		mov     r22, r0             # r22 -> last 4 chars reg
 
 		movia		r8, buffer					# Buffer pointer
 		movia		r9, buffer					# List pointer
@@ -82,53 +82,54 @@ read_byte:
 		# ------------------------------------------------------------
 store_byte:
 		# Store in buffer, tricky bit
-		stb			r4, (r9)
-		addi		r9, r9, 1
-		addi		r11, r8, 32
-		bne			r9,	r11, _store_ret
-		mov			r9, r8	# Wrap back to beginning
+		stb			r4, (r9)            # Store it
+		addi		r9, r9, 1           # Set pointer to next pos
+		addi		r11, r8, 32         # Check for overflow
+		bne			r9,	r11, _store_ret # If no overflow, ret
+		mov			r9, r8	            # Else, wrap back to beginning
 _store_ret:
 		ret
 
-		# Test r4 to see if it's an enter
+		# ------------------------------------------------------------
+    # test_dump (char r4, char[4] r22)
+    # Takes last character in r4, four characters before that in
+    #   r22. If last five characters are 'dump\n', dumps buffer.
+    # ------------------------------------------------------------
 test_dump:
-		subi    sp, sp, WORD
-		stw     ra,  0(sp)
+		subi    sp, sp, WORD        # Build stack fram
+		stw     ra,  0(sp)          # Store return address
 
 		movi		r19, 0x0A 					# Character of [enter]
-		movia   r21, dump_str
-		ldwio		r20, (r21)  		# dump
+		movia   r21, dump_str       # Load 'dump' from memory
+		ldwio		r20, (r21)  		    # Put it in r20
 
-		mov			r18, r4							# make a copy to test for enter
+		mov			r18, r4							# Make a copy to test for enter
 		andi		r18, r18, 0xFF			# AND off everything but the character bits
 
 		bne			r18, r19, _test_ret # If not enter, keep waiting
 		bne			r22, r20, _test_ret # If last 4 chars not dump, keep waiting
 
-		# If it is enter, test last 4 bytes.
-		# ldb			r4, (r8)
-
-		movia 	r10, 0
-		movia		r11, 32
-		addi		r13, r8, 32
-		mov			r12, r9
+		movia 	r10, 0              # Else, start dumping.
+		movia		r11, 32             # Iterate over i <= 32
+		addi		r13, r8, 32         # Find beginning of list
+		mov			r12, r9             # Using the beginning of the buffer
 _dump_all:
-		beq			r10, r11, _test_ret
-		bne			r12, r13, _dump_read
-		mov			r12, r8	# Wrap back to beginning
+		beq			r10, r11, _test_ret     # We hit end of list
+		bne			r12, r13, _dump_read    # We're not at the end of the buffer yet
+		mov			r12, r8	                # Else, wrap back to beginning
 _dump_read:
-		ldbio		r4, (r12)
-		addi 		r10, r10, 1 #
-		addi		r12, r12, 1 # Read next byte
-		call print_byte
-		br _dump_all
+		ldbio		r4, (r12)           # Load next char to print
+		addi 		r10, r10, 1         # Increment counter
+		addi		r12, r12, 1         # Read next byte
+		call    print_byte          # Print byte
+		br      _dump_all           # Loop again
 
 _test_ret:
 		srli		r22, r22, 8					# shift last 4 chars over
-		slli		r18, r18, 24
+		slli		r18, r18, 24        # shift newest char over to position
 		add			r22, r22, r18				# add most recent char
 
-		ldw			ra,  0(sp)
+		ldw			ra,  0(sp)          # Restore return address
 		# free the stack frame
 		addi   	sp, sp, WORD
 		ret
@@ -140,7 +141,7 @@ _test_ret:
 		# ---------------------------------------------------------
 		.data
 
-buffer:     .space     32    # Our Buffer
+buffer:     .space     32          # Our Buffer
 dump_str:   .ascii     "dump" 	   # Test for 'dump'
 
 		.end							# end of assembly.
