@@ -94,9 +94,11 @@ _start:
 		# enable timer to create an IRQ to the CPU
     movia       r15, TIMER_BASE
 		movia 			r7, time_delay
-		ldw         r7, (r7) 	# 1 second
-    stwio       r7, (r15)
-
+		ldw         r6, (r7)
+    stwio       r6, 0x20(r15) # Set the period 1 reg
+    movia       r6, 0b111
+    stwio       r6, (r15) # Set the status to 1
+    stwio       r6, 0x10(r15) # Set the ITO, CONT, and START to 1
 
 		# ---------------------------------------------------
 		# Configure CPU to take external hardware interrupts
@@ -226,8 +228,9 @@ skip_ea_dec:
 		# Service the interrupting device
 
 		# Clear the source of the interrupt
-
-
+        movia       r15, TIMER_BASE
+        movia       r6, 0b0
+        stwio       r6, (r15)
 
 
 end_isr:
