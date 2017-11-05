@@ -2,14 +2,15 @@
     <architecture>Nios II</architecture>
     <system>
         <sample_system_title>DE10-Lite PDS Computer</sample_system_title>
-        <cable>null</cable>
+        <cable>USB-Blaster [USB-0]</cable>
         <processor>nios2_e</processor>
         <reset_processor_during_load>false</reset_processor_during_load>
+        <terminal>uart</terminal>
     </system>
     <program>
         <type>Assembly Program</type>
         <source_files>
-            <source_file filepath="true">samCuthbertson_irq_homework4.s</source_file>
+            <source_file filepath="true">name_irq_homeworkN.s</source_file>
         </source_files>
         <options>
             <start_symbol>_start</start_symbol>

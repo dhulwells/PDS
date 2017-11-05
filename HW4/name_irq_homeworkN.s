@@ -1,6 +1,8 @@
+# This is a bank template to use for your homework assignments
+
 # --------------------------------------------------------------
-#      Author: Samuel Cuthbertson
-#  Assignment: homework4
+#      Author: <fill in your name>
+#  Assignment: homeworkN  <change N to the appropriate value>
 #        Date: <fill in the date you complete your code>
 #      System: DE10-Lite PDS Computer
 # Description: <write a short description of what your code does>
@@ -11,6 +13,7 @@
 # --------------------------------------------------------------------------------------
 
 
+
 		# ---------------------------------------------------------
 		# RESET SECTION
 		# ---------------------------------------------------------
@@ -18,13 +21,15 @@
         # specified in the CPU settings in Qsys.
         # Note: "ax" is REQUIRED to designate the section as allocatable and executable.
 
-    # A real reset handler would fully initialize the CPU and then jump to start.
+
+		# A real reset handler would fully initialize the CPU and then jump to start.
 		# CPU's reset vector = 0x0000_0000
         .section    .reset, "ax"
 
 reset:
         movia       r2, _start
         jmp         r2
+
 
 
 		# ---------------------------------------------------------
@@ -50,7 +55,7 @@ exception_handler:
 		.text
 
 		.include 	"address_map_nios2.s"
-
+    .equ		DELAY_VALUE, 200000
 		.global 	_start
 
 _start:
@@ -86,18 +91,24 @@ _start:
 		# ---------------------------------------------------
         # Configure devices to generate interrupts
 		# ---------------------------------------------------
-
-    # enable pushbutton 0 to create an IRQ to the CPU
-    # Only button 0 will generate an interrupt, not button 1
+		# enable timer to create an IRQ to the CPU
     movia       r15, TIMER_BASE
-    ldw         r7, time_delay # 1 second
+		movia 			r7, time_delay
+		ldw         r7, (r7) 	# 1 second
     stwio       r7, (r15)
+
 
 		# ---------------------------------------------------
 		# Configure CPU to take external hardware interrupts
 		# ---------------------------------------------------
 
+		# Enable input on irq[1]
+		movia				r7, IRQ_TIMER_MASK
+		wrctl				ienable, r7
 
+		# Set status[PIE] to enable the CPU
+		movi				r7, 0b0001
+		wrctl				status, r7
 
 
 
@@ -135,11 +146,35 @@ slide_down:
 
 		srli    r11, r11, 0b1 # Shift right one LED
 
-		bne     r14, r11, loop # If we should still be going right, repeat
+		movia		r13, 0b1 # Min led pattern
+
+		bne     r13, r11, loop # If we should still be going right, repeat
 
 		movia   r12, 0b0 # Else, set the mode
 
     br      loop
+
+
+		# ------------------------------------------------------------
+		# print ()
+		# Takes as argument string pointed to by r4, prints to UART.
+		#
+print:
+		ldwio		r18, 4(r16)         # Is there space available in the TX FIFO?
+		andhi   r18, r18, 0xFFFF    # Only look at the upper 16-bits.
+		beq			r18, r0, print 		  # No space, wait for space to become available.
+
+		# OK, there is space in the TX FIFO, send the character to the host
+		ldb			r19, (r4)							# Load our character to be sent
+		beq 		r0, r19, _print_ret		# If null, return. End of string
+		stbio		r19, (r16)						# Else, send character
+
+		# Iterate
+		addi		r4, r4, 0x1
+		br			print
+
+_print_ret:
+		ret
 
 # --------------------------------------------------------------
 # End of main program
@@ -155,7 +190,7 @@ slide_down:
 interrupt_service_routine:
 
 		# Adjust the size of the stack frame as needed by your code
-		.equ		ISR_STACKSIZE,	5*4 		# 5 32-bit words
+		.equ		ISR_STACKSIZE,	6*4 		# 5 32-bit words
 
         # make a stack frame
         subi        sp, sp, ISR_STACKSIZE
@@ -176,23 +211,17 @@ interrupt_service_routine:
 skip_ea_dec:
         stw         ea,  4(sp)		# save the exception address
         stw         ra,  8(sp)		# save the current subrountine's ra
-        stw         rx,  12(sp)		# save the registers we use in this routine
-        stw         rxx,  16(sp)
-		# etc.
-
+        stw         r11,  12(sp)		# save the registers we use in this routine
+        stw         r12,  16(sp)
+        stw         r8,  20(sp)
 
 		# bail if IRQ is not external hardware interrupt
         beq         et, r0, end_isr     # interrupt is not external IRQ
 
-
-
-
-
-        # -----------------------------------
-        # do our stuff, service the interrupt
-        # -----------------------------------
-
 		# Determine source of the interrupt
+
+				movia		r4, counter_str   # Call print on our string
+				call 		print
 
 		# Service the interrupting device
 
@@ -206,8 +235,9 @@ end_isr:
         ldw         et,  0(sp)
         ldw         ea,  4(sp)
         ldw         ra,  8(sp)
-        ldw         rx,  12(sp)
-        ldw         rxx, 16(sp)
+        ldw         r11,  12(sp)
+        ldw         r12, 16(sp)
+				ldw					r8, 20(sp)
 
 
 
@@ -241,11 +271,9 @@ end_isr:
 		# ---------------------------------------------------------
 		.data
 
-              .align  2	# align to 2^2=4 byte boundary
-
-time_delay:   .word   40000000
-
-
+        				.align 		2	# align to 2^2=4 byte boundary
+time_delay:  		.word   	40
+counter_str:		.asciz		"The counter has rolled over\n"
 
 
 
