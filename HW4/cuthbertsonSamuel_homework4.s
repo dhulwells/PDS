@@ -50,7 +50,7 @@ exception_handler:
 		.text
 
 		.include 	"address_map_nios2.s"
-    .equ		DELAY_VALUE, 75000
+    .equ		DELAY_VALUE, 150000
 		.global 	_start
 
 _start:
