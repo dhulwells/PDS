@@ -9,7 +9,7 @@
     <program>
         <type>Assembly Program</type>
         <source_files>
-            <source_file filepath="true">name_irq_homeworkN.s</source_file>
+            <source_file filepath="true">samCuthbertson_irq_homework4.s</source_file>
         </source_files>
         <options>
             <start_symbol>_start</start_symbol>
