@@ -87,7 +87,8 @@ _start:
     movia       r4, 0x24 # Write this to the INT_ENABLE reg
     call        accel_write
 
-		movia 			r5, 0b00010000 # Enable interrupts from activity
+		# movia 			r5, 0b00010000 # Enable interrupts from activity
+		movia 			r5, 0b00000000 # Enable interrupts from activity
    	movia       r4, 0x2E # Write this to the INT_ENABLE reg
     call        accel_write
 
@@ -106,17 +107,20 @@ _start:
 		/* ----------------------------------------------------------
 		 * Finish initialization
 		---------------------------------------------------------- */
-    # Get initial gravity value
+		# Get initial gravity value
     movia       r4, ADXL345_DATAZH
     call        accel_read
 
     mov         r15, r2
-    slli        r15, r15, 0x8       # Shift high bits into place
+    slli        r15, r15, 27       # Shift high bits into place
 
     movia       r4, ADXL345_DATAZL
     call        accel_read
 
-    add         r15, r2, r15       # Read low bits, initial Z is now in r15
+		slli 				r2, r2, 19
+    add         r15, r2, r15       # Read low bits
+
+		srai 				r15, r15, 19			 # Sign extend, initial Z is now in r15
 
 # --------------------------------------------------------------
 # main program
@@ -193,66 +197,23 @@ skip_ea_dec:
     # Can only be the accelerometer in this example
 
 		# Service the interrupting device
-		/* update the count in memory         */
-				movia       r4, count           # r4 -> mmory location that holds the count variable
-				ldw         r5, (r4)            # fetch the count from ememory
-				addi        r5, r5, 0x1      		# increment the count
+		# Get initial gravity value
+				movia       r4, ADXL345_DATAZH
+				call        accel_read
 
-				andi				r6, r5, 0x0F				# See if lower count is 10
-				movia				r7, 0xA
-				bne					r7, r6, do_display  # If it's not, just update display
+				mov         r12, r2
+				slli        r12, r12, 8       # Shift high bits into place
 
+				movia       r4, ADXL345_DATAZL
+				call        accel_read
 
-				movia       r4, count						# First Digit is 10
-				ldw         r5, (r4)            # fetch the count from ememory
-				andi				r6, r5, 0xF0				# Update higher count
-				srli				r6, r6, 0x4
-				addi				r6, r6, 0x1					# increment
-				slli				r5, r6, 0x4
-				movia				r7, 0xA							# See if upper digit is 10
-				bne					r7, r6, do_display
+				add         r12, r2, r12       # Read low bits
 
-				# They're both 10! Roll over
-				movia				r5, 0x00
-				movia				r4, counter_str
-				call 				print
+				# srai 				r12, r12, 19			 # Sign extend, initial Z is now in r15
 
-do_display:
-				movia       r4, count           # r4 -> mmory location that holds the count variable
-				stw         r5, (r4)            # store the count back to memory
-
-		/* display the lower 4-bits of the 32-bit count value on HEX0 */
-				movia				r4, segement_table 	/* r4 -> segment table base */
-				andi				r5, r5, 0x000F
-				add					r4, r4, r5          /* r4 -> point (offset) to char code in table */
-				ldbu				r5, (r4)            /* get the char code from the table */
-				# Let's save the lower bits in r7
-				mov 				r7, r5
-
-		/* display the lower 4-bits of the 32-bit count value on HEX0 */
-				movia       r4, count           # r4 -> mmory location that holds the count variable
-				ldw         r5, (r4)            # fetch the count from ememory
-				movia				r4, segement_table 	/* r4 -> segment table base */
-				andi				r5, r5, 0x00F0
-				srli				r5, r5, 0x4
-				add					r4, r4, r5          /* r4 -> point (offset) to char code in table */
-				ldbu				r5, (r4)            /* get the char code from the table */
-
-				slli				r5, r5, 0x8					# put upper digit in place
-				add					r5, r5, r7					# combine digits
-
-				movia				r4, SEGA_OUT_BASE   /* r4 -> HEX0 base */
-				stwio				r5, (r4)            /* write the HEX0 */
-
-
-		# Clear the source of the interrupt
-        movia       r5, TIMER_BASE
-        movia       r6, 0b00
-        stwio       r6, (r5)
-
-		# Restart the timer
-				movia       r6, 0b0101
-				stbio       r6, 0x4(r5) # Set the status to 101: start, do cont, do IQR
+		# Clear the interrupt
+				movia						r4, ADXL345_INT_SOURCE
+				call						accel_read
 
 end_isr:
         # restore registers we used
@@ -280,14 +241,7 @@ end_isr:
 		.data
 		    				.align 		2	# align to 2^2=4 byte boundary
 
-time_delayl:  	.word   	0x9680 # Magic value -> 1/4 sec interrupts
-time_delayh:		.word			0x0098
-
-/* ------------------------------------------------- */
-/* 7-segment display character code table */
-/* This is another example of how the assembler can be */
-/* used to build a control table in memory */
-segement_table:
+accel_led_table:
 		.byte					0x3F /* 0 */
 		.byte					0x06 /* 1 */
 		.byte					0x5B /* 2 */
