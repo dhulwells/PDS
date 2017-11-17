@@ -83,12 +83,15 @@ _start:
 		# ---------------------------------------------------
 		# enable accelerometer to create an IRQ to the CPU
 
-    movia 			r5, 0x20 # Set activity threshold to 32 (2g)
-    movia       r4, 0x24 # Write this to the INT_ENABLE reg
-    call        accel_write
+    # movia 			r5, 0x20 # Set activity threshold to 32 (2g)
+    # movia       r4, 0x24 # Write this to the INT_ENABLE reg
+    # call        accel_write
 
-		# movia 			r5, 0b00010000 # Enable interrupts from activity
-		movia 			r5, 0b00000000 # Enable interrupts from activity
+		movia 			r5, 0b00010000 # Enable z-axis detection only
+		movia       r4, 0x27 # Write this to the INT_ENABLE reg
+		call        accel_write
+
+		movia 			r5, 0b00010000 # Enable interrupts from activity
    	movia       r4, 0x2E # Write this to the INT_ENABLE reg
     call        accel_write
 
@@ -140,18 +143,20 @@ loop:
 accel_write:
         movia       r16, ACCEL_SPI_BASE
        	stbio       r4, (r16)
-        stbio       r5, 0x8(r16)
+
+        stbio       r5, 8(r16)
 
 				ret
 
 # --------------------------------------------------------------
 # accel_read ()
-# Takes as argument register number in r4, reads value to r2.
+# Takes as argument register number in r4, reads value to r5.
 # --------------------------------------------------------------
 accel_read:
         movia       r16, ACCEL_SPI_BASE
        	stbio       r4, (r16)
-        ldbio       r2, 0x8(r16)
+
+        ldbuio      r5, 8(r16)
 
 				ret
 
@@ -213,6 +218,9 @@ skip_ea_dec:
 
 		# Clear the interrupt
 				movia						r4, ADXL345_INT_SOURCE
+				call						accel_read
+
+				movia						r4, 0x2B
 				call						accel_read
 
 end_isr:
