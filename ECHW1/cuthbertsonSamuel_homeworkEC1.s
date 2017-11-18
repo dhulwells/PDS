@@ -144,7 +144,7 @@ accel_write:
         movia       r16, ACCEL_SPI_BASE
        	stbio       r4, (r16)
 
-        stbio       r5, 8(r16)
+        stbio       r5, 1(r16)
 
 				ret
 
@@ -156,7 +156,7 @@ accel_read:
         movia       r16, ACCEL_SPI_BASE
        	stbio       r4, (r16)
 
-        ldbuio      r5, 8(r16)
+        ldbuio      r2, 1(r16)
 
 				ret
 
