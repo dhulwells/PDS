@@ -35,25 +35,91 @@ _start:
 
 		movia   r16, UART_BASE			# r16 -> UART base address
 
-		movia		r4, press_ent_str   # Call print on our first string
+		movia		r4, begin_str   		# Call print on our first string
 		call 		print
 
 		call		wait_ent						# Wait for enter
 
-    # Do the second thing 
+    # Do the first thing - disable write protection
+		movia 	r8, ONCHIP_FLASH_CSR_CONTROL
+		ldwio 	r9, (r8)
+		movia		r10, setup_ctrl
+		ldw			r11, (r10)
+		and 		r9, r11, r9  # Unset all erase addresses, unset write protect sector 1
+		stwio		r9, (r8)
 
-		movia		r4, hello_world_str # Call print on our second string
+		# Wait for flash to become idle
+		call 		wait_flash
+
+		# Do the next thing - do sector erase
+		ldwio 	r9, (r8)
+		movi 		r11, 0b0001	 # Unset write protect, set clear sector 1
+		slli		r11, r11, 20 # Shift into position
+		add 		r9, r11, r9
+		stwio		r9, (r8)
+
+		# Wait for flash to become idle
+		call 		wait_flash
+		# Did erase succeed?
+		andi		r13, r13, 0b10000
+		bne			r13, r0, check_erase_mem
+
+		movia		r4, erase_failed
 		call 		print
+		break
 
-		movia		r4, cont_ent_str    # Call print on our third string
+check_erase_mem:
+		# Read first 32bits of flash
+		movia		r14, ONCHIP_FLASH_SECTOR1_BASE
+		ldwio		r15, (r14)
+		nor 		r15, r0, r15
+		beq 		r15, r0, begin_write
+
+		movia		r4, erase_chk_fail
 		call 		print
+		break
 
-		call		wait_ent						# Wait for enter
+begin_write:
+		movia 	r5, the_data
+		movia		r6,	ONCHIP_FLASH_SECTOR1_BASE
+		addi 		r20, r5, 512
 
-		movia		r4, done_str				# Call print on our last string
+write:
+		ldw 		r7, (r5) # Load next 4 bytes
+		stwio		r7, (r6) # Store in flash
+
+		# Check for failure
+		call 		wait_flash
+		andi 		r13, r13, 0b1000
+		addi 		r21, r0, 0b1000
+		beq 		r13, r21, write_cont
+
+		# Log failure
+		movia		r4, write_fail
+		call 		print
+		break
+
+write_cont:
+		addi 		r5, r5, 4
+		addi 		r6, r6, 4
+
+		# Check for end of loop
+		bne			r20, r5, write
+
+		# We're done!
+		# Do the last thing - enable write protection
+		movia 	r8, ONCHIP_FLASH_CSR_CONTROL
+		ldwio 	r9, (r8)
+		movia		r10, shutdown_ctrl
+		ldw			r11, (r10)
+		or 			r9, r11, r9  # Reset everything
+		stwio		r9, (r8)
+
+		movia		r4, done
 		call 		print
 
 self:		br  	self							# Hang out here forever
+
 
 		# ------------------------------------------------------------
 		# print ()
@@ -76,6 +142,10 @@ print:
 _print_ret:
 		ret
 
+		# ------------------------------------------------------------
+		# wait_ent ()
+		# Blocks until 0x0A from enter.
+		#
 wait_ent:
 		movi		r19, 0x0A 				# Character of enter
 		ldwio		r17, (r16)	# [15] = RVALID, when == 1 we have a !empty RX FIFO
@@ -89,14 +159,54 @@ wait_ent:
 		# Else, return
 		ret
 
+		# ------------------------------------------------------------
+		# wait_flash ()
+		# Blocks until flash is idle.
+		#
+wait_flash:
+		movia		r12, ONCHIP_FLASH_CSR_STATUS
+		ldwio		r13, (r12)
+		andi		r14, r13, 0b11
+		bne			r14, r0, wait_flash
+
+		ret
+
 		# ---------------------------------------------------------
 		# DATA SECTION
 		# ---------------------------------------------------------
 		.data
 
-press_ent_str:		.asciz		"Press the enter key to begin\n"
-hello_world_str:	.asciz		"Hello World!\n"
-cont_ent_str:			.asciz		"Press the enter key to continue\n"
-done_str:					.asciz		"We are done!\n"
+		.align  2^2             # align to 4-byte boundary
+
+
+the_data:      # 16 x 4-bytes = 64-bytes, data values to program into flash
+					.word       0x03020100
+					.word       0x07060504
+					.word       0x0b0a0908
+					.word       0x0f0e0d0c
+
+					.word       0x13121110
+					.word       0x17161514
+					.word       0x1b1a1918
+					.word       0x1f1e1d1c
+
+					.word       0x23222120
+					.word       0x27262524
+					.word       0x2b2a2928
+					.word       0x2f2e2d2c
+
+					.word       0x33323130
+					.word       0x37363534
+					.word       0x3b3a3938
+					.word       0x3f3e3d3c
+
+setup_ctrl:				.word			 0xFF000000
+shutdown_ctrl:		.word			 0x3FFFFFFF
+
+begin_str:				.asciz		"Ready to program NOR flash, press the enter key to begin\n"
+erase_failed:			.asciz		"Erase operation failed!\n"
+erase_chk_fail:		.asciz		"Erase operation failed to set all bits to 1\n"
+write_fail:				.asciz		"A programming operation failed\n"
+done:							.asciz		"NOR flash programming complete\n"
 
 		.end							# end of assembly.
