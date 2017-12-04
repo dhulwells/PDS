@@ -82,7 +82,7 @@ check_erase_mem:
 begin_write:
 		movia 	r5, the_data
 		movia		r6,	ONCHIP_FLASH_SECTOR1_BASE
-		addi 		r20, r5, 512
+		addi 		r20, r5, 64
 
 write:
 		ldw 		r7, (r5) # Load next 4 bytes
